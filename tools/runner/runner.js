@@ -370,6 +370,9 @@ TestControl.prototype = {
             elem.disabled = false;
         });
         this.start_button.onclick = function() {
+            // Hide the instructions
+            document.getElementById('instructions').style.display = "none";
+
             var path = this.get_path();
             var test_types = this.get_test_types();
             var settings = this.get_testharness_settings();
@@ -474,6 +477,26 @@ Results.prototype = {
     }
 };
 
+function TopLevelTestList(inputBox, selectList)
+{
+  this.inputBox = inputBox;
+  this.selectList = selectList;
+  selectList.addEventListener('change', this.on_change.bind(this));
+  for(var i = 0; i < tests.length; i++)
+  {
+    var test = tests[i];
+    
+    var opt = new Option(test, "/"+test);
+    selectList.add(opt);
+  }
+}
+
+TopLevelTestList.prototype = {
+    on_change: function() {
+        this.inputBox.value = this.selectList.value;
+    }
+};
+
 function Runner(manifest_path) {
     this.server = location.protocol + "//" + location.host;
     this.manifest = new Manifest(manifest_path);
@@ -510,7 +533,17 @@ Runner.prototype = {
     },
 
     open_test_window: function() {
-        this.test_window = window.open("about:blank", 800, 600);
+        if(document.getElementById('iframe').checked) {
+            var iFrameElement = document.createElement("iframe");
+            iFrameElement.id = 'outputWindow';
+            iFrameElement.style.width = 800;
+            iFrameElement.style.height = 600;
+            
+            document.getElementById('iFramePlaceholder').appendChild(iFrameElement);
+            this.test_window = iFrameElement.contentWindow;
+        } else {
+            this.test_window = window.open("about:blank", 800, 600);
+        }
     },
 
     manifest_loaded: function() {
@@ -581,7 +614,12 @@ Runner.prototype = {
     done: function() {
         this.done_flag = true;
         if (this.test_window) {
-            this.test_window.close();
+            if(document.getElementById('iframe').checked) {
+                var outputWindow = document.getElementById('outputWindow');
+                outputWindow.parentNode.removeChild(outputWindow);
+            } else {
+                this.test_window.close();
+            }
         }
         this.done_callbacks.forEach(function(callback) {
             callback();
@@ -654,13 +692,21 @@ function setup() {
     if (options.path) {
         document.getElementById('path').value = options.path;
     }
+    if (options.iframe) {
+        document.getElementById('iframe').checked = true;
+    }
 
     runner = new Runner("/MANIFEST.json", options);
     var test_control = new TestControl(document.getElementById("testControl"), runner);
     new ManualUI(document.getElementById("manualUI"), runner);
     new VisualOutput(document.getElementById("output"), runner);
+    new TopLevelTestList(document.getElementById("path"), document.getElementById("pathSelector"));
 
     if (options.autorun === "1") {
+        // Hide the instructions and controls
+        document.getElementById('instructions').style.display = "none";
+        document.getElementById('testSelection').style.display = "none";
+
         runner.start(test_control.get_path(),
                      test_control.get_test_types(),
                      test_control.get_testharness_settings());
